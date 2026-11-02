@@ -151,3 +151,4 @@ Replace `YOUR-USERNAME` with your account name. Choose a license before granting
 Edit the GPU and offer records in [`assets/data.js`](assets/data.js). Update the snapshot date in both `data.js` and `index.html`, then update this README. Retain source URLs and state clearly whether each speed value is measured or estimated. Published rates should be checked against the provider before being used in a procurement decision.
 
 This project is independent of the GPU providers and benchmark publishers listed here. No hardware was rented or tested for this release.
+
