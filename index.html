@@ -13,50 +13,363 @@
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <div class="identity"><span class="mark" aria-hidden="true">G</span><span>GPU Cost Explorer</span></div>
-      <div class="header-right"><span class="snapshot">Data snapshot: 2 Nov 2026</span><button type="button" id="themeButton" class="button subtle" aria-label="Switch to dark theme">Dark theme</button></div>
+      <div class="identity">
+        <span class="mark" aria-hidden="true">G</span>
+        <span class="site-title">GPU Cost Explorer</span>
+      </div>
+      <div class="header-right">
+        <span class="snapshot"><span class="live-dot" aria-hidden="true"></span>Data snapshot: 2 Nov 2026</span>
+        <div class="header-actions">
+          <button type="button" class="button compact" id="csvButton" title="Export current comparison as CSV">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Export CSV</span>
+          </button>
+          <button type="button" class="button compact" id="jsonButton" title="Export current comparison as JSON">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Export JSON</span>
+          </button>
+          <button type="button" class="button compact" id="shareBtn" title="Copy shareable link with current filters">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            <span>Share</span>
+          </button>
+          <button type="button" id="themeButton" class="button compact subtle" aria-label="Switch to dark theme">Dark</button>
+        </div>
+      </div>
     </div>
   </header>
+
   <div class="page">
     <aside class="sidebar" aria-label="Scenario settings">
-      <button type="button" class="button mobile-filter-toggle" id="mobileFilterToggle" aria-expanded="false">Scenario and filters</button>
+      <button type="button" class="button mobile-filter-toggle" id="mobileFilterToggle" aria-expanded="false">Scenario & Filters</button>
+      
       <div class="sidebar-title">Scenario</div>
-      <div class="field"><label for="workload">Training workload</label><select id="workload"><option value="vision">Vision</option><option value="transformer">Transformer</option><option value="multimodal">Multimodal (modeled)</option></select><p class="help" id="workloadHelp"></p></div>
-      <div class="field"><label for="baseGpu">Runtime reference</label><select id="baseGpu"><option value="rtx4090">RTX 4090, published comparisons</option><option value="t4">T4, user-defined estimate</option></select></div>
-      <div class="field"><div class="label-row"><label for="baseHours">Reference training hours</label><output id="hoursValue">24 h</output></div><input id="baseHours" type="range" min="6" max="168" step="6" value="24"></div>
-      <div class="field" id="t4Control" hidden><div class="label-row"><label for="t4Factor">4090 speed relative to T4</label><output id="t4Value">6.0×</output></div><input id="t4Factor" type="range" min="2" max="12" step="0.5" value="6"><p class="help">Planning assumption, not a matched published benchmark.</p></div>
-      <div class="field" id="mixControl" hidden><div class="label-row"><label for="visionShare">Vision share of runtime</label><output id="mixValue">60%</output></div><input id="visionShare" type="range" min="0" max="100" step="5" value="60"><p class="help">Remaining runtime is Transformer training on the reference GPU.</p></div>
+      <div class="field">
+        <label for="workload">Training workload</label>
+        <select id="workload">
+          <option value="vision">Vision (YOLO26n)</option>
+          <option value="transformer">Transformer (DistilBERT)</option>
+          <option value="multimodal">Multimodal (Harmonic blend)</option>
+        </select>
+        <p class="help" id="workloadHelp"></p>
+      </div>
+
+      <div class="field">
+        <label for="baseGpu">Runtime reference GPU</label>
+        <select id="baseGpu">
+          <option value="rtx4090">RTX 4090 24GB (Baseline 1.00×)</option>
+          <option value="a100_80">A100 80GB PCIe</option>
+          <option value="a100_80s">A100 80GB SXM</option>
+          <option value="a100_40">A100 40GB</option>
+          <option value="h100s">H100 SXM 80GB</option>
+          <option value="rtx3090">RTX 3090 24GB</option>
+          <option value="a6000">RTX A6000 48GB</option>
+          <option value="t4">NVIDIA T4 (Configurable factor)</option>
+        </select>
+        <p class="help">Hardware your reference runtime was measured on.</p>
+      </div>
+
+      <div class="field">
+        <div class="label-row">
+          <label for="baseHours">Reference runtime</label>
+          <output id="hoursValue">24 h</output>
+        </div>
+        <input id="baseHours" type="range" min="6" max="168" step="6" value="24">
+      </div>
+
+      <div class="field" id="gpuCountField">
+        <div class="label-row">
+          <label for="gpuCount">GPUs per instance</label>
+          <output id="gpuCountValue">1× GPU</output>
+        </div>
+        <select id="gpuCount">
+          <option value="1">1× GPU (Single node)</option>
+          <option value="2">2× GPUs (92% scaling efficiency)</option>
+          <option value="4">4× GPUs (85% scaling efficiency)</option>
+          <option value="8">8× GPUs (78% scaling efficiency)</option>
+        </select>
+      </div>
+
+      <div class="field" id="t4Control" hidden>
+        <div class="label-row">
+          <label for="t4Factor">4090 speed relative to T4</label>
+          <output id="t4Value">6.0×</output>
+        </div>
+        <input id="t4Factor" type="range" min="2" max="12" step="0.5" value="6">
+        <p class="help">Planning assumption for legacy T4 instances.</p>
+      </div>
+
+      <div class="field" id="mixControl" hidden>
+        <div class="label-row">
+          <label for="visionShare">Vision runtime share</label>
+          <output id="mixValue">60%</output>
+        </div>
+        <input id="visionShare" type="range" min="0" max="100" step="5" value="60">
+        <p class="help">Remaining runtime is Transformer training on reference GPU.</p>
+      </div>
+
       <div class="rule"></div>
-      <div class="sidebar-title">Filters</div>
-      <div class="field"><label for="vramMin">Minimum GPU memory</label><select id="vramMin"><option value="0">All memory sizes</option><option value="16">16 GB</option><option value="24">24 GB</option><option value="32">32 GB</option><option value="40">40 GB</option><option value="48">48 GB</option><option value="80">80 GB</option><option value="96">96 GB</option></select></div>
-      <div class="field"><label for="tier">Rental tier</label><select id="tier"><option value="all">All listed rates</option><option value="dedicated">On-demand / dedicated</option><option value="community">Community marketplace</option></select></div>
-      <div class="field"><label for="confidence">Benchmark coverage</label><select id="confidence"><option value="all">Measured and estimated</option><option value="measured">Measured only</option></select></div>
+      <div class="sidebar-title">Model & Filters</div>
+
+      <div class="field">
+        <label for="modelPreset">Target model memory preset</label>
+        <select id="modelPreset">
+          <option value="custom">Custom VRAM filter</option>
+          <option value="16_llama">LLaMA 3 8B / Mistral 8B FP16 (16 GB)</option>
+          <option value="16_sdxl">SDXL / Diffusion (16 GB)</option>
+          <option value="24_flux">Flux.1 Dev / Schnell (24 GB)</option>
+          <option value="40_llama70">LLaMA 3 70B 4-bit QLoRA (40 GB)</option>
+          <option value="80_llama70">LLaMA 3 70B 8-bit / FP16 (80 GB)</option>
+          <option value="96_deepseek">DeepSeek / Large MoE (96 GB+)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="vramMin">Minimum GPU memory</label>
+        <select id="vramMin">
+          <option value="0">All memory sizes</option>
+          <option value="16">16 GB</option>
+          <option value="24">24 GB</option>
+          <option value="32">32 GB</option>
+          <option value="40">40 GB</option>
+          <option value="48">48 GB</option>
+          <option value="80">80 GB</option>
+          <option value="96">96 GB</option>
+          <option value="141">141 GB</option>
+          <option value="192">192 GB</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="tier">Rental tier</label>
+        <select id="tier">
+          <option value="all">All listed rates</option>
+          <option value="dedicated">On-demand / Dedicated</option>
+          <option value="community">Community marketplace</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="confidence">Benchmark coverage</label>
+        <select id="confidence">
+          <option value="all">Measured & estimated</option>
+          <option value="measured">Measured only</option>
+        </select>
+      </div>
+
       <div class="rule"></div>
-      <div class="sidebar-title">Costs</div>
-      <div class="field"><label for="currency">Currency</label><select id="currency"><option value="INR">Indian rupees (INR)</option><option value="USD">US dollars (USD)</option></select></div>
-      <div class="field"><label for="fx">USD to INR rate</label><input type="number" id="fx" value="94.70" step="0.01" min="1" max="1000"></div>
-      <div class="field"><label for="overhead">Extra compute time (%)</label><input type="number" id="overhead" value="0" min="0" max="200" step="5"><p class="help">Adds setup, validation, and failed-step time.</p></div>
-      <div class="field"><label for="fixedCost">Fixed cost per job (USD)</label><input type="number" id="fixedCost" value="0" min="0" max="100000" step="0.1"><p class="help">Storage and other fixed charges, if known.</p></div>
+      <div class="sidebar-title">Costs & Overhead</div>
+
+      <div class="field">
+        <label for="currency">Currency</label>
+        <select id="currency">
+          <option value="USD">US dollars ($ USD)</option>
+          <option value="INR">Indian rupees (₹ INR)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="fx">USD to INR rate</label>
+        <input type="number" id="fx" value="94.70" step="0.01" min="1" max="1000">
+      </div>
+
+      <div class="field">
+        <label for="storageGb">Network storage (GB)</label>
+        <input type="number" id="storageGb" value="0" min="0" max="50000" step="50">
+        <p class="help">Amortized persistent storage ($0.10/GB/month).</p>
+      </div>
+
+      <div class="field">
+        <label for="idleHours">Setup / idle hours</label>
+        <input type="number" id="idleHours" value="0" min="0" max="100" step="0.5">
+        <p class="help">Billed time spent preparing environment or data.</p>
+      </div>
+
+      <div class="field">
+        <label for="overhead">Extra compute time (%)</label>
+        <input type="number" id="overhead" value="0" min="0" max="200" step="5">
+        <p class="help">Adds validation, checkpointing, and failed-step margin.</p>
+      </div>
+
+      <div class="field">
+        <label for="fixedCost">Fixed cost per job (USD)</label>
+        <input type="number" id="fixedCost" value="0" min="0" max="100000" step="0.1">
+      </div>
+
       <button id="resetButton" class="button full" type="button">Reset settings</button>
     </aside>
+
     <main class="content">
-      <div class="intro"><div><h1>Cloud GPU comparison</h1><p>Compare rental rates, estimated training time, and cost per completed job. All estimates use a common reference workload.</p></div><div class="intro-actions"><button class="button" type="button" id="csvButton">Export CSV</button><button class="button" type="button" id="jsonButton">Export JSON</button></div></div>
-      <div class="notice" role="note"><strong>Reference data, not live quotes.</strong> Prices and published benchmarks are dated snapshots. Estimates assume the workload fits in GPU memory and uses the listed training configuration. <a href="#method">Read the method</a>.</div>
-      <div class="summary-grid" id="summary" aria-live="polite"></div>
-      <div class="charts-grid">
-        <section class="panel"><div class="panel-head"><div><h2>Cost and training time</h2><p>Lower-left indicates less time and lower modeled cost.</p></div><span class="legend"><span class="legend-dot"></span>Non-dominated offers</span></div><div id="scatter" class="chart-area" role="group" aria-label="Cost and time chart"></div></section>
-        <section class="panel"><div class="panel-head"><div><h2>Lowest estimated job cost</h2><p>Eight lowest-cost qualifying offers.</p></div></div><div id="bars" class="bars"></div></section>
+      <div class="intro">
+        <div>
+          <h1>Cloud GPU Comparison</h1>
+          <p>Compare rental prices, training throughput, memory capacity, and estimated job costs across providers.</p>
+        </div>
+        <div class="active-scenario-pills" id="activePills"></div>
       </div>
-      <section class="panel table-panel"><div class="panel-head table-head"><div><h2>Rental offers</h2><p>Sort by cost, runtime, hourly rate or memory. Select a row for details.</p></div><div class="search-wrap"><label class="sr-only" for="search">Search providers and GPUs</label><input id="search" type="search" placeholder="Search GPUs or providers"></div></div>
-        <div class="table-scroll"><table><thead><tr><th><button type="button" data-sort="gpu">GPU ↕</button></th><th><button type="button" data-sort="provider">Provider ↕</button></th><th><button type="button" data-sort="vram">VRAM ↕</button></th><th><button type="button" data-sort="rateUsd">Hourly rate ↕</button></th><th><button type="button" data-sort="relative">Speed vs 4090 ↕</button></th><th><button type="button" data-sort="hours">Time ↕</button></th><th><button type="button" data-sort="costUsd">Job cost ↕</button></th><th>Evidence / source</th></tr></thead><tbody id="offerRows"></tbody></table></div>
-        <div class="table-footer"><span id="rowCount"></span><span>GPU-only rental, before taxes and data transfer</span></div>
+
+      <div class="notice-bar" id="noticeBar">
+        <div class="notice-text">
+          <span class="notice-tag">Notice</span>
+          <span><strong>Reference snapshot (2 Nov 2026):</strong> Indicative rental prices & published benchmarks. Model fit assumes sufficient VRAM and matching precision.</span>
+          <a href="#method">Methodology & sources</a>
+        </div>
+        <button type="button" class="notice-close" id="dismissNotice" aria-label="Dismiss notice">×</button>
+      </div>
+
+      <div class="summary-grid" id="summary" aria-live="polite"></div>
+
+      <div class="charts-grid">
+        <section class="panel chart-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Cost vs Training Time</h2>
+              <p>Lower-left indicates faster completion and lower modeled cost.</p>
+            </div>
+            <div class="panel-controls">
+              <span class="legend"><span class="legend-dot"></span>Frontier</span>
+              <div class="segmented-control" id="scatterScaleControl">
+                <button type="button" class="seg-btn active" data-scale="linear">Linear</button>
+                <button type="button" class="seg-btn" data-scale="log">Log scale</button>
+              </div>
+            </div>
+          </div>
+          <div id="scatter" class="chart-area" role="group" aria-label="Cost and time chart"></div>
+          <div id="chartTooltip" class="chart-tooltip" hidden></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Top Qualifying Offers</h2>
+              <p>Top ranked offers for current scenario.</p>
+            </div>
+            <div class="panel-controls">
+              <select id="barMetric" class="compact-select" aria-label="Bar chart ranking metric">
+                <option value="cost">Lowest Total Cost</option>
+                <option value="speed">Fastest Completion</option>
+                <option value="rate">Lowest Hourly Rate</option>
+                <option value="value">Best Value (Speed/$)</option>
+              </select>
+            </div>
+          </div>
+          <div id="bars" class="bars"></div>
+        </section>
+      </div>
+
+      <!-- Side-by-side comparison modal/drawer -->
+      <section class="panel compare-panel" id="comparePanel" hidden>
+        <div class="panel-head">
+          <div>
+            <h2>Side-by-Side Comparison</h2>
+            <p>Comparing selected rental offers directly.</p>
+          </div>
+          <button type="button" class="button compact" id="clearCompare">Clear comparison</button>
+        </div>
+        <div class="compare-grid" id="compareGrid"></div>
       </section>
-      <div class="lower-grid"><section class="panel" id="selection"><h2>Selected offer</h2><div id="details"><p class="muted">Select a rental offer.</p></div></section>
-        <section class="panel"><h2>Add a rate</h2><p class="panel-lead">Enter a quote for an RTX 4080, 4080 SUPER, RTX 5080, or any listed GPU.</p><form id="quoteForm" class="quote-grid"><div class="field"><label for="quoteGpu">GPU</label><select id="quoteGpu"></select></div><div class="field"><label for="quoteProvider">Provider</label><input id="quoteProvider" placeholder="Provider name" maxlength="70" required></div><div class="field"><label for="quoteRate">USD per hour</label><input id="quoteRate" type="number" step="0.001" min="0.001" required placeholder="0.350"></div><div class="field"><label for="quoteTier">Type</label><select id="quoteTier"><option value="dedicated">On-demand</option><option value="community">Community</option></select></div><button class="button primary" type="submit">Add quote</button></form><p class="help">Custom quotes stay in this browser. No server or account is required.</p></section></div>
-      <section class="panel"><div class="panel-head"><div><h2>Local GPU references</h2><p>Benchmarks for GPUs considered for future desktop builds. Unpriced unless you add a cloud quote.</p></div></div><div class="references" id="localReferences"></div></section>
-      <section class="method" id="method"><h2>Method and sources</h2><div class="method-grid"><div><h3>Training profiles</h3><p><strong>Vision:</strong> Ultralytics YOLO26n training on COCO (640px, mixed precision). <strong>Transformer:</strong> LynxBenchAI DistilBERT BF16 training. <strong>Multimodal:</strong> An adjustable blend of the two workloads, not a measured multimodal model.</p><p>Where a matched GPU result is unavailable, a clearly marked proxy is used. A100 40 GB results are modeled from A100 80 GB throughput at 95.5% and should be treated as provisional.</p></div><div><h3>Cost model</h3><p>Estimated hours = reference hours × reference-to-4090 factor ÷ relative throughput. Compute cost = hours × price per hour. Extra compute time and fixed charges are optional inputs.</p><p>GPU memory is a feasibility filter, not a speed estimate. Results are not a substitute for testing your model.</p></div></div><div class="source-links"><a href="https://www.ultralytics.com/benchmarks" target="_blank" rel="noopener noreferrer">Ultralytics benchmark</a><a href="https://www.technolynx.com/lynxbench-ai/training/" target="_blank" rel="noopener noreferrer">LynxBenchAI benchmark</a><a href="https://www.runpod.io/pricing" target="_blank" rel="noopener noreferrer">RunPod pricing</a><a href="https://www.hyperstack.cloud/gpu-pricing" target="_blank" rel="noopener noreferrer">Hyperstack pricing</a><a href="https://www.thundercompute.com/pricing" target="_blank" rel="noopener noreferrer">Thunder pricing</a><a href="https://jarvislabs.ai/in" target="_blank" rel="noopener noreferrer">Jarvislabs pricing</a></div></section>
-      <footer class="footer">GPU Cost Explorer · Static data, 2 November 2026 · <a href="README.md">README and results</a></footer>
+
+      <section class="panel table-panel">
+        <div class="panel-head table-head">
+          <div>
+            <h2>Rental Offers</h2>
+            <p>Sort columns or filter by provider. Check boxes to compare offers side-by-side.</p>
+          </div>
+          <div class="table-actions">
+            <div class="search-wrap">
+              <label class="sr-only" for="search">Search providers and GPUs</label>
+              <input id="search" type="search" placeholder="Search GPUs or providers...">
+            </div>
+          </div>
+        </div>
+        
+        <div class="provider-filter-bar" id="providerPills"></div>
+
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th class="th-compare">Compare</th>
+                <th><button type="button" data-sort="gpu">GPU ↕</button></th>
+                <th><button type="button" data-sort="provider">Provider ↕</button></th>
+                <th><button type="button" data-sort="vram">VRAM ↕</button></th>
+                <th><button type="button" data-sort="rateUsd">Hourly rate ↕</button></th>
+                <th><button type="button" data-sort="relative">Speed vs Ref ↕</button></th>
+                <th><button type="button" data-sort="hours">Time ↕</button></th>
+                <th><button type="button" data-sort="costUsd">Job cost ↕</button></th>
+                <th>Evidence / Source</th>
+              </tr>
+            </thead>
+            <tbody id="offerRows"></tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          <span id="rowCount"></span>
+          <span>GPU compute rental before taxes, data transfer, and specialized storage</span>
+        </div>
+      </section>
+
+      <div class="lower-grid">
+        <section class="panel" id="selection">
+          <h2>Selected Offer Details</h2>
+          <div id="details"><p class="muted">Select a rental offer from the table or chart.</p></div>
+        </section>
+
+        <section class="panel">
+          <h2>Add a Custom Quote</h2>
+          <p class="panel-lead">Enter a quote for an RTX 4080, 5080, 5090, or any listed GPU.</p>
+          <form id="quoteForm" class="quote-grid">
+            <div class="field"><label for="quoteGpu">GPU</label><select id="quoteGpu"></select></div>
+            <div class="field"><label for="quoteProvider">Provider</label><input id="quoteProvider" placeholder="e.g. Local Lab / Cloud" maxlength="70" required></div>
+            <div class="field"><label for="quoteRate">USD per hour</label><input id="quoteRate" type="number" step="0.001" min="0.001" required placeholder="0.350"></div>
+            <div class="field"><label for="quoteTier">Type</label><select id="quoteTier"><option value="dedicated">On-demand</option><option value="community">Community</option></select></div>
+            <button class="button primary" type="submit">Add quote</button>
+          </form>
+          <p class="help">Custom quotes remain private in your browser LocalStorage.</p>
+        </section>
+      </div>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Local GPU Workstation References & Buy vs. Rent</h2>
+            <p>Compare local desktop hardware against cloud rental costs to find your break-even point.</p>
+          </div>
+        </div>
+        <div class="references" id="localReferences"></div>
+      </section>
+
+      <section class="method" id="method">
+        <h2>Methodology and Data Sources</h2>
+        <div class="method-grid">
+          <div>
+            <h3>Training Workload Profiles</h3>
+            <p><strong>Vision:</strong> Ultralytics YOLO26n training on COCO (640px, mixed precision). <strong>Transformer:</strong> LynxBenchAI DistilBERT BF16 sustained training results. <strong>Multimodal:</strong> Weighted harmonic mean of Vision and Transformer reference runtime share ($1 / (\frac{w}{s_v} + \frac{1-w}{s_t})$).</p>
+            <p>Where direct measurements are unavailable, documented cross-model proxies are used (e.g. MobileNetV3 for 4080-series cards; A100 40 GB modeled at 95.5% of A100 80 GB). All proxies are clearly tagged as <em>Estimated</em>.</p>
+          </div>
+          <div>
+            <h3>Cost & Throughput Formulation</h3>
+            <p>Equivalent runtime is scaled relative to the chosen reference GPU: $\text{hours} = (\text{ref\_hours} \times s_\text{ref} / s_\text{gpu}) \times (1 + \text{overhead}\%)$. Compute cost = $\text{hours} \times \text{hourly\_rate} \times \text{GPU\_count}$. Storage and idle setup hours are factored into total project expenses.</p>
+            <p>The Pareto frontier isolates non-dominated offers (offers where no alternative is simultaneously faster and cheaper).</p>
+          </div>
+        </div>
+        <div class="source-links">
+          <a href="https://www.ultralytics.com/benchmarks" target="_blank" rel="noopener noreferrer">Ultralytics benchmark</a>
+          <a href="https://www.technolynx.com/lynxbench-ai/training/" target="_blank" rel="noopener noreferrer">LynxBenchAI benchmark</a>
+          <a href="https://www.runpod.io/pricing" target="_blank" rel="noopener noreferrer">RunPod pricing</a>
+          <a href="https://www.hyperstack.cloud/gpu-pricing" target="_blank" rel="noopener noreferrer">Hyperstack pricing</a>
+          <a href="https://www.thundercompute.com/pricing" target="_blank" rel="noopener noreferrer">Thunder Compute</a>
+          <a href="https://jarvislabs.ai/in" target="_blank" rel="noopener noreferrer">Jarvislabs India</a>
+          <a href="https://cloud.vast.ai/" target="_blank" rel="noopener noreferrer">Vast.ai marketplace</a>
+          <a href="https://lambdalabs.com/service/gpu-cloud" target="_blank" rel="noopener noreferrer">Lambda Labs</a>
+        </div>
+      </section>
+
+      <footer class="footer">
+        GPU Cost Explorer · Static data snapshot, 2 November 2026 · <a href="README.md">Documentation & Methodology</a>
+      </footer>
     </main>
   </div>
+
+  <div id="copyToast" class="copy-toast" role="status" aria-live="polite">Shareable link copied to clipboard!</div>
 </body>
 </html>
